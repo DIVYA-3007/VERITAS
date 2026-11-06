@@ -1,7 +1,13 @@
 
 from uuid import UUID, uuid4
 
-from sqlalchemy import ForeignKey, Integer, Text
+from sqlalchemy import (
+    ForeignKey,
+    Integer,
+    Text,
+    String,
+    Float,
+)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
@@ -37,6 +43,16 @@ class DocumentChunk(Base):
     content: Mapped[str] = mapped_column(
         Text,
         nullable=False
+    )
+
+    extraction_method: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True
+    )
+
+    ocr_confidence: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True
     )
 
     embedding: Mapped[list[float] | None] = mapped_column(

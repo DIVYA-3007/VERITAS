@@ -1,7 +1,16 @@
 
 import re
+
 import pymupdf
 
+from ai_engine.document_processing.ocr_extractor import (
+    extract_page_text_with_ocr,
+)
+
+
+# ---------------------------------------------------------
+# TEXT NORMALIZATION
+# ---------------------------------------------------------
 
 def normalize_text(text: str) -> str:
     """
@@ -17,19 +26,22 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
+# ---------------------------------------------------------
+# NATIVE PDF TEXT RECONSTRUCTION
+# ---------------------------------------------------------
+
 def reconstruct_page_text(page) -> str:
     """
     Reconstruct page text using word coordinates.
 
     Words are grouped by their original text block and line.
-    Horizontal gaps are used to determine where spaces belong.
+    Horizontal gaps determine where spaces belong.
     """
 
     words = page.get_text("words", sort=True)
 
     lines = {}
 
-    # Group words by block and line
     for item in words:
         x0, y0, x1, y1, text, block_no, line_no, word_no = item
 
@@ -46,7 +58,6 @@ def reconstruct_page_text(page) -> str:
 
     reconstructed_lines = []
 
-    # Reconstruct each line
     for line_words in lines.values():
 
         line_words.sort(key=lambda word: word["x0"])
@@ -56,6 +67,7 @@ def reconstruct_page_text(page) -> str:
         for index, word in enumerate(line_words):
 
             if index > 0:
+
                 previous_word = line_words[index - 1]
 
                 gap = word["x0"] - previous_word["x1"]
@@ -70,15 +82,27 @@ def reconstruct_page_text(page) -> str:
     return "\n".join(reconstructed_lines)
 
 
+# ---------------------------------------------------------
+# PDF TEXT EXTRACTION WITH OCR FALLBACK
+# ---------------------------------------------------------
+
 def extract_text_from_pdf(pdf_path: str) -> list[dict]:
     """
     Extract text page by page from a PDF.
+
+    Processing strategy:
+        1. Attempt native PyMuPDF text extraction.
+        2. If native text is insufficient, use EasyOCR.
+        3. Preserve page numbers and extraction metadata.
+        4. Record OCR confidence when OCR is used.
 
     Returns:
         [
             {
                 "page_number": 1,
-                "text": "Extracted page content..."
+                "text": "Extracted page content...",
+                "extraction_method": "native",
+                "ocr_confidence": None
             }
         ]
     """
@@ -88,15 +112,39 @@ def extract_text_from_pdf(pdf_path: str) -> list[dict]:
     document = pymupdf.open(pdf_path)
 
     try:
+
         for page_number, page in enumerate(document, start=1):
 
+            # STEP 1: Native text extraction
             raw_text = reconstruct_page_text(page)
 
             cleaned_text = normalize_text(raw_text)
 
+            extraction_method = "native"
+            ocr_confidence = None
+
+            # STEP 2: OCR fallback
+            if len(cleaned_text) < 20:
+
+                ocr_result = extract_page_text_with_ocr(page)
+
+                ocr_text = normalize_text(ocr_result["text"])
+
+                # Use OCR output only when it improves extraction.
+                if len(ocr_text) > len(cleaned_text):
+
+                    cleaned_text = ocr_text
+
+                    extraction_method = "ocr"
+
+                    ocr_confidence = ocr_result["confidence"]
+
+            # STEP 3: Store page-level extraction results
             extracted_pages.append({
                 "page_number": page_number,
-                "text": cleaned_text
+                "text": cleaned_text,
+                "extraction_method": extraction_method,
+                "ocr_confidence": ocr_confidence
             })
 
     finally:
