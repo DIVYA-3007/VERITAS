@@ -44,3 +44,6 @@ scanned_*.pdf
 !.env.example
 # Obsolete root-level duplicate (active service is under backend/app/services)
 /document_service.py
+
+# Local database backups
+*.dump

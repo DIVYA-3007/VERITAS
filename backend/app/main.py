@@ -15,20 +15,21 @@ app = FastAPI(
     debug=settings.DEBUG,
 )
 
-# Allow the React development frontend to communicate with FastAPI.
+# Allow React frontend development servers.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# Register API routers exactly once.
+# Register API routers.
 app.include_router(
     documents_router,
     prefix=settings.API_V1_PREFIX,
