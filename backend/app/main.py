@@ -1,11 +1,12 @@
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.api.v1.endpoints.documents import router as documents_router
-
 from app.api.v1.endpoints.search import router as search_router
 from app.api.v1.endpoints.qa import router as qa_router
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -14,14 +15,34 @@ app = FastAPI(
     debug=settings.DEBUG,
 )
 
+# Allow the React development frontend to communicate with FastAPI.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Register API routers
+
+# Register API routers exactly once.
 app.include_router(
     documents_router,
     prefix=settings.API_V1_PREFIX,
 )
-app.include_router(documents_router, prefix=settings.API_V1_PREFIX)
-app.include_router(search_router, prefix=settings.API_V1_PREFIX)
+
+app.include_router(
+    search_router,
+    prefix=settings.API_V1_PREFIX,
+)
+
+app.include_router(
+    qa_router,
+    prefix=settings.API_V1_PREFIX,
+)
 
 
 @app.get("/")
@@ -29,7 +50,7 @@ def home():
     return {
         "project": settings.APP_NAME,
         "tagline": "From documents to trusted knowledge.",
-        "message": "Welcome to VERITAS API!"
+        "message": "Welcome to VERITAS API!",
     }
 
 
@@ -37,8 +58,5 @@ def home():
 def health_check():
     return {
         "status": "healthy",
-        "application": settings.APP_NAME
+        "application": settings.APP_NAME,
     }
-
-app.include_router(qa_router, prefix=settings.API_V1_PREFIX)
-

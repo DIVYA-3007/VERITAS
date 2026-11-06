@@ -28,3 +28,19 @@ storage/processed/*
 *.log
 .DS_Store
 Thumbs.db
+
+
+# Node.js / React
+node_modules/
+dist/
+*.local
+
+# Test PDFs - generated locally
+scanned_*.pdf
+
+# Environment files
+.env
+.env.*
+!.env.example
+# Obsolete root-level duplicate (active service is under backend/app/services)
+/document_service.py
