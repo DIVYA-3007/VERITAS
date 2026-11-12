@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.db.database import get_db
 from app.models.document import Document
 from app.services.document_service import process_pdf_document
+from app.services.search_service import invalidate_embedding_cache
 
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -75,7 +76,7 @@ async def upload_document(
             original_filename=Path(file.filename).name,
             file_size=len(contents),
         )
-
+        invalidate_embedding_cache()
         return {
             "message": "PDF uploaded and processed successfully.",
             "document_id": str(document.id),

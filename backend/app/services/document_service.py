@@ -1,8 +1,10 @@
 
 from functools import lru_cache
 from pathlib import Path
+from uuid import uuid4
 
 from sentence_transformers import SentenceTransformer
+from sqlalchemy import insert
 from sqlalchemy.orm import Session
 
 from ai_engine.document_processing.pdf_extractor import extract_text_from_pdf
@@ -34,10 +36,13 @@ def process_pdf_document(
     file_size: int,
 ) -> Document:
     """
-    Extract, chunk, embed, and store a PDF document.
+    Extract and store PDF text and metadata.
 
-    Stores page number, extraction method, OCR confidence,
-    and vector embeddings for every generated chunk.
+    The embedding column is deliberately omitted from SQL INSERT
+    statements because PostgreSQL's vector library is blocked
+    by the current Windows application-control policy.
+
+    Semantic embeddings are generated in Python during search.
     """
 
     pdf_path = Path(pdf_path)
@@ -66,7 +71,7 @@ def process_pdf_document(
     document_id = document.id
 
     try:
-        # 1. Extract page-wise text using native extraction or OCR.
+        # 1. Extract page-wise text.
         pages = extract_text_from_pdf(str(pdf_path))
 
         if not pages or not any(page["text"].strip() for page in pages):
@@ -74,7 +79,7 @@ def process_pdf_document(
                 "No extractable text found in PDF, including OCR processing."
             )
 
-        # 2. Split extracted text into chunks.
+        # 2. Generate text chunks.
         chunks = chunk_pages(
             pages,
             chunk_size=500,
@@ -84,44 +89,30 @@ def process_pdf_document(
         if not chunks:
             raise ValueError("No text chunks were generated.")
 
-        # 3. Generate embeddings.
-        model = get_embedding_model()
+        # 3. Prepare chunk records without the embedding column.
+        chunk_rows = []
 
-        texts = [chunk["content"] for chunk in chunks]
-
-        embeddings = model.encode(
-            texts,
-            normalize_embeddings=True,
-            convert_to_numpy=True,
-            show_progress_bar=False,
-        )
-
-        if embeddings.shape[1] != EMBEDDING_DIMENSION:
-            raise ValueError("Unexpected embedding dimension.")
-
-        if len(embeddings) != len(chunks):
-            raise ValueError("Embedding count does not match chunk count.")
-
-        # 4. Save chunks, embeddings, and extraction metadata.
-        document_chunks = []
-
-        for chunk, embedding in zip(chunks, embeddings):
-
-            document_chunks.append(
-                DocumentChunk(
-                    document_id=document_id,
-                    chunk_index=chunk["chunk_index"],
-                    page_number=chunk["page_number"],
-                    content=chunk["content"],
-                    extraction_method=chunk["extraction_method"],
-                    ocr_confidence=chunk["ocr_confidence"],
-                    embedding=embedding.tolist(),
-                )
+        for chunk in chunks:
+            chunk_rows.append(
+                {
+                    "id": uuid4(),
+                    "document_id": document_id,
+                    "chunk_index": chunk["chunk_index"],
+                    "page_number": chunk["page_number"],
+                    "content": chunk["content"],
+                    "extraction_method": chunk["extraction_method"],
+                    "ocr_confidence": chunk["ocr_confidence"],
+                }
             )
 
-        db.add_all(document_chunks)
+        # 4. Insert only explicitly supplied columns.
+        # The embedding column is completely omitted.
+        db.execute(
+            insert(DocumentChunk.__table__),
+            chunk_rows,
+        )
 
-        # 5. Mark document as successfully processed.
+        # 5. Mark document as completed.
         document.status = "completed"
 
         db.commit()

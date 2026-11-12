@@ -1,10 +1,14 @@
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.services.search_service import search_similar_chunks
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/search", tags=["Semantic Search"])
 
@@ -38,8 +42,13 @@ def semantic_search(
             detail=str(exc),
         ) from exc
 
-    except Exception as exc:
+    except Exception:
+        logger.exception(
+            "Semantic search failed for query: %s",
+            request.query,
+        )
+
         raise HTTPException(
             status_code=500,
-            detail="Semantic search failed.",
-        ) from exc
+            detail="Semantic search failed. Check backend logs.",
+        ) from None

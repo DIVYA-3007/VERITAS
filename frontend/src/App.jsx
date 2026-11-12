@@ -595,8 +595,8 @@ function App() {
                 </div>
 
                 <div className="hint">
-                  Powered by sentence-transformer embeddings
-                  and pgvector similarity search.
+                  Powered by Sentence Transformer embeddings, cached Python-based
+                  cosine similarity, and evidence-aware retrieval.
                 </div>
               </form>
 
